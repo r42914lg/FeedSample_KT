@@ -11,6 +11,7 @@ import com.r42914lg.tutukt.model.TuTuViewModel
 
 class NetworkTracker(private val activity: AppCompatActivity, private val vm: TuTuViewModel) {
     private var isOnline = false
+    val cm = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
 
     private val networkCallback: NetworkCallback = object : NetworkCallback() {
         override fun onAvailable(network: Network) {
@@ -37,12 +38,20 @@ class NetworkTracker(private val activity: AppCompatActivity, private val vm: Tu
         .build()
 
     fun register() {
-        val cm = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         cm.requestNetwork(networkRequest, networkCallback)
     }
 
     fun unregister() {
-        val cm = activity.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
         cm.unregisterNetworkCallback(networkCallback)
+    }
+
+    fun checkIfOnline(): Boolean {
+        val capabilities = cm.getNetworkCapabilities(cm.activeNetwork)
+        return if (capabilities != null)
+            capabilities.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) ||
+                    capabilities.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)
+        else
+            false
     }
 }

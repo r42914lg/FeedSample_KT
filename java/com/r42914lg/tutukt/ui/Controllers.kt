@@ -26,7 +26,10 @@ class CoreController(private val vm: TuTuViewModel, private val activity: MainAc
         }
     }
 
-    fun registerNetworkTracker() = networkTracker.register()
+    fun registerNetworkTracker() {
+        networkTracker.register()
+        vm.setNetworkStatus(networkTracker.checkIfOnline())
+    }
     fun unregisterNetworkTracker() = networkTracker.unregister()
 }
 

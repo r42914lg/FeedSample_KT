@@ -82,11 +82,11 @@ class MainActivity : AppCompatActivity(), ICoreView {
     }
 
     override fun startProgressOverlay() {
-        animateView(progressOverlay, View.VISIBLE, 0.6f)
+//        animateView(progressOverlay, View.VISIBLE, 0.6f)
     }
 
     override fun stopProgressOverlay() {
-        animateView(progressOverlay, View.GONE, 0f)
+//        animateView(progressOverlay, View.GONE, 0f)
     }
 
     override fun showTerminateDialog(terminateDialogText: TerminateDialogText) {

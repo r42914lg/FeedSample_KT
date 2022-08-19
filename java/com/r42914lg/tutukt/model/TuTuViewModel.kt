@@ -7,9 +7,10 @@ import androidx.lifecycle.viewModelScope
 import com.r42914lg.tutukt.R
 import com.r42914lg.tutukt.domain.Category
 import com.r42914lg.tutukt.domain.CategoryDetailed
-import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Deferred
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.text.MessageFormat
 
 
@@ -58,36 +59,30 @@ class TuTuViewModel(app: Application) : AndroidViewModel(app) {
 
     private fun doRequestFeedUpdate() {
         progressBarFlagLiveData.value = true
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             val categoryList = repository.getCategories()
 
-            categoryList?.apply outer@ {
-                withContext(Dispatchers.Main) {
-                    offlineCategoriesInFeed = false
-                    pushCategoriesToUI(this@outer)
-                }
+            categoryList?.apply {
+                offlineCategoriesInFeed = false
+                pushCategoriesToUI(this)
                 repository.saveCategoriesToFile(this)
             }
 
             if (categoryList.isNullOrEmpty()) {
-                withContext(Dispatchers.Main) {
-                    showErrorMsgOnUI()
-                }
+                showErrorMsgOnUI()
             }
         }
     }
 
     fun requestDetailsUpdate() {
-        viewModelScope.launch(Dispatchers.IO) {
+        viewModelScope.launch {
             val categoryDetailed = repository.getCategoryDetails(categoryId)
 
             if (categoryDetailed != null && categoryDetailed.id == categoryId) {
                 repository.saveDetailsToFile(categoryDetailed)
-                withContext(Dispatchers.Main) {
-                    categoryDetailedLiveData.value = categoryDetailed
-                    navigateToDetailedViewLiveData.value = true
-                    progressBarFlagLiveData.setValue(false)
-                }
+                categoryDetailedLiveData.value = categoryDetailed
+                navigateToDetailedViewLiveData.value = true
+                progressBarFlagLiveData.setValue(false)
             } else
                 showErrorMsgOnUI()
         }

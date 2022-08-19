@@ -24,19 +24,20 @@ class RepoWrapper(private val vm: TuTuViewModel,
                   private val api: Repository,
                   private val local: Repository) : Repository {
 
-    override suspend fun getCategories(): List<Category>? {
-        return if (vm.checkIfOnline)
+    override suspend fun getCategories(): List<Category>? =
+        if (vm.checkIfOnline)
             api.getCategories()
         else
-            local.getCategories()
-    }
+            withContext(Dispatchers.IO) {
+                local.getCategories()
+            }
 
-    override suspend fun getCategoryDetails(id: Int): CategoryDetailed? {
-        return if (vm.checkIfOnline)
+
+    override suspend fun getCategoryDetails(id: Int): CategoryDetailed? =
+        if (vm.checkIfOnline)
             api.getCategoryDetails(id)
         else
             local.getCategoryDetails(id)
-    }
 
     override suspend fun saveCategoriesToFile(list: List<Category>) {
         local.saveCategoriesToFile(list)
@@ -49,102 +50,94 @@ class RepoWrapper(private val vm: TuTuViewModel,
 
 class APIRepository : Repository {
 
-    override suspend fun getCategories(): List<Category>? {
-        return RestClient.getApi()
+    override suspend fun getCategories(): List<Category>? =
+            RestClient.getApi()
                 .getCategories(Constants.CATEGORIES_TO_RETURN,
                     Random().nextInt(Constants.OFFSET_MAX)).body()
-    }
 
-    override suspend fun getCategoryDetails(id: Int): CategoryDetailed? {
-        return RestClient.getApi()
+
+    override suspend fun getCategoryDetails(id: Int): CategoryDetailed? =
+            RestClient.getApi()
             .getDetailedCategory(id).body()
-    }
 
     override suspend fun saveCategoriesToFile(list: List<Category>) {}
     override suspend fun saveDetailsToFile(categoryDetailed: CategoryDetailed) {}
 }
 
 class LocalRepository(private val app: Application) : Repository {
-
     override suspend fun getCategories(): List<Category>? {
-        return coroutineScope {
+        var categoryList: List<Category>?
 
-            var categoryList: List<Category>?
+        try {
+            val jsonString = readFromAsset(Constants.LOCAL_FILE_NAME_FEED)
+            val jsonArray = JSONArray(jsonString)
 
-            try {
-                val jsonString = readFileFromAsset(Constants.LOCAL_FILE_NAME_FEED)
-                val jsonArray = JSONArray(jsonString)
-
-                categoryList = ArrayList<Category>(Constants.CATEGORIES_TO_RETURN)
-                for (i in 0 until jsonArray.length()) {
-                    val c: Category = RestClient.gson().fromJson(
-                        jsonArray.getJSONObject(i).toString(),
-                        Category::class.java
-                    )
-                    categoryList.add(c)
-                }
-            } catch (e: Exception) {
-                e.printStackTrace()
-                categoryList = null
+            categoryList = ArrayList<Category>(Constants.CATEGORIES_TO_RETURN)
+            for (i in 0 until jsonArray.length()) {
+                val c: Category = RestClient.gson().fromJson(
+                    jsonArray.getJSONObject(i).toString(),
+                    Category::class.java
+                )
+                categoryList.add(c)
             }
-
-            categoryList
+        } catch (e: Exception) {
+            e.printStackTrace()
+            categoryList = null
         }
+
+        return categoryList
     }
 
     override suspend fun getCategoryDetails(id: Int): CategoryDetailed? {
-        return coroutineScope {
-            var categoryDetailed: CategoryDetailed? = null
-            try {
-                val jsonString = readFileFromAsset(Constants.LOCAL_FILE_NAME_DETAILS)
-                categoryDetailed = RestClient.gson().fromJson(jsonString, CategoryDetailed::class.java)
-            } catch (e: Exception) {
-                e.printStackTrace()
-            }
-            categoryDetailed
+        var categoryDetailed: CategoryDetailed? = null
+        try {
+            val jsonString = readFromAsset(Constants.LOCAL_FILE_NAME_DETAILS)
+            categoryDetailed = RestClient.gson().fromJson(jsonString, CategoryDetailed::class.java)
+        } catch (e: Exception) {
+            e.printStackTrace()
         }
+        return categoryDetailed
     }
 
     override suspend fun saveCategoriesToFile(list: List<Category>) {
-        coroutineScope {
-            val buffer = StringBuffer("[")
+        val buffer = StringBuffer("[")
 
-            for (i in list.indices) {
-                if (i > 0) {
-                    buffer.append(",")
-                }
-                buffer.append(RestClient.gson().toJson(list[i]))
+        for (i in list.indices) {
+            if (i > 0) {
+                buffer.append(",")
             }
-
-            buffer.append("]")
-
-            try {
-                val fos = app.openFileOutput(Constants.LOCAL_FILE_NAME_FEED, Context.MODE_PRIVATE)
-                fos.write(buffer.toString().toByteArray())
-                fos.close()
-            } catch (e: java.lang.Exception) {
-                e.printStackTrace()
-            }
+            buffer.append(RestClient.gson().toJson(list[i]))
         }
+
+        buffer.append("]")
+
+        saveToAsset(Constants.LOCAL_FILE_NAME_FEED, buffer.toString())
     }
 
     override suspend fun saveDetailsToFile(categoryDetailed: CategoryDetailed) {
-        try {
-            val fos = app.openFileOutput(Constants.LOCAL_FILE_NAME_DETAILS, Context.MODE_PRIVATE)
-            fos.write(RestClient.gson().toJson(categoryDetailed).toByteArray())
-            fos.close()
-        } catch (e: IOException) {
-            e.printStackTrace()
+        saveToAsset(Constants.LOCAL_FILE_NAME_DETAILS, RestClient.gson().toJson(categoryDetailed))
+    }
+
+    private suspend fun saveToAsset(fileName: String, s: String) =
+        withContext(Dispatchers.IO) {
+            try {
+                val fos =
+                    app.openFileOutput(fileName, Context.MODE_PRIVATE)
+                fos.write(s.toByteArray())
+                fos.close()
+            } catch (e: IOException) {
+                e.printStackTrace()
+            }
         }
-    }
 
-    private fun readFileFromAsset(fullPath: String): String {
-        val inputStream: InputStream = app.openFileInput(fullPath)
-        val size: Int = inputStream.available()
-        val buffer = ByteArray(size)
+    private suspend fun readFromAsset(fullPath: String): String =
+        withContext(Dispatchers.IO) {
+            val inputStream: InputStream = app.openFileInput(fullPath)
+            val size: Int = inputStream.available()
+            val buffer = ByteArray(size)
 
-        inputStream.read(buffer)
+            inputStream.read(buffer)
 
-        return String(buffer, StandardCharsets.UTF_8)
-    }
+            String(buffer, StandardCharsets.UTF_8)
+        }
 }
